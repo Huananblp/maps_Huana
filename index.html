@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+  <title>ตำแหน่งที่สามารถลงเวลาได้</title>
+  <link rel="icon" href="https://www.huana-nbp.go.th/index/add_file/qOv0r0dTue83729.png" type="image/png">
+  <link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: 'Arial', sans-serif;
+    }
+
+    #map-container {
+      height: 100%;
+      width: 100%;
+      position: relative;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    #panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+      z-index: 10;
+      max-width: 300px;
+      overflow-y: auto;
+    }
+
+    #panel h2 {
+      margin-top: 0;
+      font-size: 1.2em;
+      cursor: pointer;
+      text-align: center; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      width: fit-content; 
+      margin: 10px auto; 
+      padding: 5px 10px; 
+      border-radius: 5px; 
+      background-color: #f0f0f0; 
+    }
+
+    .location-link {
+      cursor: pointer;
+      color: #007bff;
+      text-decoration: underline;
+      margin-bottom: 5px;
+      display: block;
+      transition: transform 0.2s;
+    }
+
+    .location-link:hover {
+      transform: scale(1.05);
+    }
+
+    #alert-warning {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-style: none;
+      border-left-style: solid;
+      border-left-width: thick;
+      border-color: #f44336;
+      background-color: #f4c3c6;
+      padding-left: 4px;
+      border-radius: 15px;
+      padding: 20px;
+      color: black;
+      z-index: 10;
+    }
+
+    #alert {
+      margin-left: 15px;
+      color: black;
+      font-weight: bold;
+      float: right;
+      font-size: 22px;
+      line-height: 20px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    #alert:hover {
+      color: white;
+    }
+
+    .collapsible-content {
+      display: none;
+      overflow: hidden;
+      transition: max-height 0.2s ease-out;
+    }
+
+    /* Style for loader */
+    #loader {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .loading-spinner {
+      border: 8px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 8px solid #3498db;
+      width: 60px;
+      height: 60px;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    #loading-text {
+      margin-top: 10px;
+      font-size: 1.2em;
+      color: #3498db;
+    }
+  </style>
+  <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+  <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+  <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
+  <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+</head>
+
+<body>
+  <div id="map-container">
+    <div id="map"></div>
+    <div id="panel">
+      <h2 onclick="toggleCollapsible(this)">
+        รายชื่อพื้นที่ที่สามารถลงเวลา <span class="arrow">▼</span>
+      </h2>
+      <div class="collapsible-content">
+        <!-- รายชื่อพื้นที่จะแสดงในนี้ -->
+      </div>
+    </div>
+    <div id="alert-warning" style="display:none;">
+      <span id="alert" onclick="this.parentElement.style.display='none';">×</span>
+      <strong>Warning!</strong><br>Please paste your apiKey in the Javascript code.
+    </div>
+    <!-- Loader -->
+    <div id="loader">
+      <div class="loading-spinner"></div>
+      <div id="loading-text">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = "Nyt7TzaXVRNBmSc4V8Zh6xqtna8NlIf_Eg0G4EnUzqo"; // ใส่ API Key ของคุณที่นี่
+
+    const alertWarningUi = document.getElementById('alert-warning');
+    const loader = document.getElementById('loader');
+
+    if (!apiKey) {
+      alertWarningUi.style.display = 'block';
+    } else {
+      alertWarningUi.style.display = 'none';
+    }
+
+    const platform = new H.service.Platform({
+      apikey: apiKey
+    });
+
+    const defaultLayers = platform.createDefaultLayers();
+
+    const map = new H.Map(document.getElementById('map'),
+      defaultLayers.vector.normal.map, {
+      center: { lat: 17.03, lng: 102.40 },
+      zoom: 12,
+      pixelRatio: window.devicePixelRatio || 1
+      });
+
+    // เพิ่ม event listener เพื่อตรวจสอบว่าแผนที่โหลดเสร็จหรือยัง
+    map.addEventListener('mapviewchangeend', () => {
+      loader.style.display = 'none'; 
+    });
+
+    window.addEventListener('resize', () => map.getViewPort().resize());
+    const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+
+    const ui = H.ui.UI.createDefault(map, defaultLayers);
+
+    const areas = [
+      { name: "1 สนง.อบต.หัวนา", north: 17.038453, south: 17.036913, east: 102.419896, west: 102.417925 },
+      { name: "2 ศพด.ดอนเข็ม", north: 17.048995, south: 17.048291, east: 102.423208, west: 102.422159 },
+      { name: "3 ศพด.บ้านหนองแสงนาล้อม", north: 17.050137, south: 17.049406, east: 102.354689, west: 102.353704 },
+      { name: "4 ศพด.บ้านดอนหัน", north: 16.988699, south: 16.988356, east: 102.421430, west: 102.420995 },
+      { name: "5 ศพด.บ้านดินทรายอ่อน", north: 17.031399, south: 17.030931, east: 102.339122, west: 102.338417 },
+      { name: "6 ศาลากลางจังหวัดหนองบัวลำภู", north: 17.226797, south: 17.221682, east: 102.428921, west: 102.425397 }, // พื้นที่ 6 
+      { name: "7 ที่ว่าการอำเภอเมืองหนองบัวลำภู", north: 17.204953, south: 17.203187, east: 102.445482, west: 102.443922 } // พื้นที่ 7 
+      //{ name: "8 ทดสอบโค้ด", north: 16.952596, south: 16.952419, east: 102.104730, west: 102.104355 }  // พื้นที่ 8
+    ];
+
+    const panel = document.getElementById('panel');
+    const collapsibleContent = document.querySelector('.collapsible-content');
+
+    // แสดง loader ตอนเริ่มต้น
+    loader.style.display = 'block'; 
+
+    areas.forEach((area, index) => {
+      const bounds = new H.geo.Rect(area.north, area.west, area.south, area.east);
+      const rectangle = new H.map.Rect(bounds, {
+        style: {
+          strokeColor: "rgba(255, 0, 0, 0.8)",
+          lineWidth: 2,
+          fillColor: "rgba(255, 0, 0, 0.35)"
+        }
+      });
+      map.addObject(rectangle);
+
+      const marker = new H.map.Marker(bounds.getCenter());
+      marker.setData((index + 1).toString());
+      map.addObject(marker);
+
+      marker.addEventListener('tap', function (evt) {
+        map.setCenter(evt.target.getGeometry(), true);
+        map.setZoom(16);
+      });
+
+      const locationLink = document.createElement('div');
+      locationLink.innerHTML = `<span class="location-link">${area.name}</span>`;
+      locationLink.addEventListener('click', () => {
+        map.getViewModel().setLookAtData({
+          bounds: rectangle.getBoundingBox()
+        });
+      });
+
+      collapsibleContent.appendChild(locationLink);
+    });
+
+    function toggleCollapsible(element) {
+      const content = element.nextElementSibling;
+      const arrow = element.querySelector('.arrow');
+
+      if (content.style.display === "block") {
+        content.style.display = "none";
+        content.style.maxHeight = null;
+        arrow.innerHTML = "▼"; 
+      } else {
+        content.style.display = "block";
+        content.style.maxHeight = content.scrollHeight + "px";
+        arrow.innerHTML = "▲"; 
+      }
+    }
+  </script>
+</body>
+
+</html>
